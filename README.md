@@ -1,6 +1,8 @@
 <div align="center">
 
-# Palo Alto | Offline NGFW Configuration & Policy Implementation
+<img src="./assets/brandons-logo.png" alt="Brandon Stevenson — IT Professional" width="180">
+
+# Palo Alto PA-820 | Offline NGFW Configuration & Policy Implementation
 
 **Physical Appliance Restoration · PAN-OS CLI · Layer 3 Segmentation · Security Policy · Source NAT · Configuration Validation**
 
@@ -55,7 +57,14 @@ The implementation was then inspected in the candidate configuration, validated,
 
 **Hardware:** Palo Alto Networks PA-820; direct serial connection through Tera Term. The appliance was configured offline, without a live production network. CLI output identifies **PAN-OS 11.1.4-h7**.
 
-### Intended logical topology
+### Network topology and security-policy design
+
+![Offline NGFW implementation — network topology, PAN-OS security policy flow, virtual routing, and source NAT](./assets/topology.png)
+
+*Figure 1 — Configured three-zone NGFW architecture, logical policy paths, virtual router, and outbound source NAT. Arrows represent the intended security-policy design; they do not indicate that the offline interfaces passed live traffic.*
+
+<details>
+<summary><strong>View text-based logical topology</strong></summary>
 
 ```text
                  LAB-TRUST                         LAB-SERVERS
@@ -72,6 +81,8 @@ The implementation was then inspected in the candidate configuration, validated,
                        configured next hop: 203.0.113.1
                          (documentation-only address)
 ```
+
+</details>
 
 | Interface | Zone | Address | Purpose |
 |---|---|---|---|
@@ -539,6 +550,9 @@ This project demonstrates an end-to-end **management-plane implementation workfl
 ```text
 PA820-Offline-NGFW/
 ├── README.md
+├── assets/
+│   ├── brandons-logo.png    # personal branding image (already in your repo)
+│   └── topology.png         # network topology diagram
 └── evidence/
     ├── s1.png
     ├── s2.png
@@ -546,7 +560,7 @@ PA820-Offline-NGFW/
     └── s25.png
 ```
 
-All screenshot paths are relative to `README.md`. To publish the project on GitHub, upload **the README and the entire `evidence/` directory together** so every inline image resolves correctly.
+All image paths are relative to `README.md`. Keep **`brandons-logo.png`** and **`topology.png`** inside `assets/`, and all 25 redacted terminal screenshots inside `evidence/`. The logo is referenced but not bundled because the original logo image has not been supplied in this conversation.
 
 The original three-page CLI guide supplied with the project was used to cross-reference command intent. The screenshots—not the guide alone—determine whether this README calls an action executed, validated, committed, or unverified.
 
