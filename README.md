@@ -1,8 +1,9 @@
 <div align="center">
 
-<img src="./assets/brandons-logo.png" alt="Brandon Stevenson — IT Professional" width="180">
 
-# Palo Alto PA-820 | Offline NGFW Configuration & Policy Implementation
+
+# Palo Alto | Offline NGFW Configuration & Policy Implementation
+<img src="./assets/brandons-logo.png" alt="Brandon Stevenson — IT Professional" width="180">
 
 **Physical Appliance Restoration · PAN-OS CLI · Layer 3 Segmentation · Security Policy · Source NAT · Configuration Validation**
 
