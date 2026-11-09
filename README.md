@@ -1,136 +1,117 @@
-<div align="center">
+<p align="center">
+  <img src="./assets/brandons-logo.png" alt="Brandon Stevenson | IT Professional" width="185">
+</p>
 
+# Palo Alto NGFW | Security Policy & Network Implementation
 
+**Technical Implementation Record**  
+Physical firewall restoration · PAN-OS CLI administration · Layer 3 segmentation · Security policy · Source NAT
 
-# Palo Alto | Offline NGFW Configuration & Policy Implementation
-<img src="./assets/brandons-logo.png" alt="Brandon Stevenson — IT Professional" width="180">
-
-**Physical Appliance Restoration · PAN-OS CLI · Layer 3 Segmentation · Security Policy · Source NAT · Configuration Validation**
-
-**Platform:** Palo Alto Networks PA-820 &nbsp;|&nbsp; **PAN-OS:** 11.1.4-h7 &nbsp;|&nbsp; **Access:** Local serial console / Tera Term  
-**Implementation Date:** November 9, 2026 &nbsp;|&nbsp; **Environment:** Offline, isolated hardware
-
-</div>
-
----
-
-## Project Overview
-
-This project documents an **executed configuration on a physical Palo Alto Networks PA-820 next-generation firewall**. The work began in the appliance's boot and maintenance environment, progressed through a factory-reset and post-reset CLI inspection, and continued into a three-zone Layer 3 firewall design. Using PAN-OS CLI commands over the serial console, I defined Ethernet interfaces, security zones, a virtual router, a static default-route configuration, reusable address and service objects, application-aware security rules, and a source NAT policy.
-
-The implementation was then inspected in the candidate configuration, validated, committed, and reviewed using operational commands. **The validation job and manual commit completed with `FIN / OK`.** The screenshots also document the important boundary of this demonstration: the configured physical interfaces were down, the runtime routing table reported zero routes, and no live traffic-flow or policy-match test results are captured. This is therefore **configuration and commit verification**, not proof of end-to-end network connectivity.
-
-### What the evidence establishes
-
-| Workstream | Recorded outcome |
-|---|---|
-| Appliance recovery | Bootloader, maintenance recovery screen, selected reset/scrub workflow, and success screens captured |
-| Administrative preparation | Console login, password-change interaction, CLI output formatting, and system-log commands captured |
-| Layer 3 network model | `ethernet1/3`, `ethernet1/4`, `ethernet1/5` configured with test addressing |
-| Segmentation and routing | Three named Layer 3 security zones and virtual router `LAB-VR`; default-route configuration defined |
-| Policy enforcement | Named SSH allow, server-access deny, and SSL allow security rules visible in the configuration |
-| Address translation | `LAB-OUTBOUND-SNAT` dynamic IP-and-port translation configured and visible in deployed NAT policy |
-| Change validation | PAN-OS validate job **4** and manual commit job **5** show **`FIN / OK`** |
-| Offline limitation | Physical test interfaces show **down**; `show routing route` shows **0** active routes |
-
-> **Evidence handling:** All 25 terminal screenshots have been preserved under [`evidence/`](./evidence/) with serial numbers, MAC addresses, unique IDs, credential hashes, and other sensitive identifiers redacted. Test IPs and rule names are intentionally retained because they explain the configuration. The reset/scrub result is an on-screen device status, **not an independent sanitization certification**.
-
-## Table of Contents
-
-1. [Environment and network design](#01--environment-and-network-design)
-2. [Bootloader and factory restoration](#02--bootloader-and-factory-restoration)
-3. [Administrative console and initial CLI](#03--administrative-console-and-initial-cli)
-4. [Baseline configuration inspection](#04--baseline-configuration-inspection)
-5. [Layer 3 interface assignment](#05--layer-3-interface-assignment)
-6. [Security zones, virtual router, and static route](#06--security-zones-virtual-router-and-static-route)
-7. [Address and service objects](#07--address-and-service-objects)
-8. [Security rulebase implementation](#08--security-rulebase-implementation)
-9. [Outbound source NAT](#09--outbound-source-nat)
-10. [Candidate review, validation, and commit](#10--candidate-review-validation-and-commit)
-11. [Operational verification and evidence](#11--operational-verification-and-evidence)
-12. [Test plan versus verified execution](#12--test-plan-versus-verified-execution)
-13. [Results, boundaries, and engineering notes](#13--results-boundaries-and-engineering-notes)
-14. [Repository layout and references](#14--repository-layout-and-references)
+**Platform:** Palo Alto Networks PA-820  
+**Software:** PAN-OS 11.1.4-h7  
+**Access:** Serial console using Tera Term  
+**Completed:** November 9, 2026
 
 ---
 
-## 01 | Environment and Network Design
+## Overview
 
-**Hardware:** Palo Alto Networks PA-820; direct serial connection through Tera Term. The appliance was configured offline, without a live production network. CLI output identifies **PAN-OS 11.1.4-h7**.
+This record documents the restoration and configuration of a physical Palo Alto Networks next-generation firewall. Work was performed directly through the appliance's maintenance environment and PAN-OS command-line interface.
 
-### Network topology and security-policy design
+Following factory restoration and baseline inspection, I configured three Layer 3 interfaces, security zones, a virtual router, address and service objects, application-aware access policies, and outbound source NAT.
 
-![Offline NGFW implementation — network topology, PAN-OS security policy flow, virtual routing, and source NAT](./assets/topology.png)
+The candidate configuration was reviewed, validated, and committed. **PAN-OS reported `FIN / OK` for both the full validation and manual commit.** Final CLI captures confirm the presence of the security and NAT policies in the running configuration.
 
-*Figure 1 — Configured three-zone NGFW architecture, logical policy paths, virtual router, and outbound source NAT. Arrows represent the intended security-policy design; they do not indicate that the offline interfaces passed live traffic.*
+The appliance remained physically isolated during configuration. The recorded interface and routing outputs are included as observed; **the successful commit does not constitute a live connectivity or packet-forwarding test.**
 
-<details>
-<summary><strong>View text-based logical topology</strong></summary>
+### Contents
 
-```text
-                 LAB-TRUST                         LAB-SERVERS
-              10.10.10.0/24                       10.20.20.0/24
-                    |                                   |
-       ethernet1/3: 10.10.10.1/24       ethernet1/4: 10.20.20.1/24
-                    |                                   |
-                    +-------- PA-820 / LAB-VR -----------+
-                                     |
-                       ethernet1/5: 203.0.113.2/30
-                                     |
-                               LAB-UNTRUST
-                                     |
-                       configured next hop: 203.0.113.1
-                         (documentation-only address)
-```
+1. [Architecture](#architecture)
+2. [Appliance restoration](#restoration)
+3. [Console preparation and baseline inspection](#baseline)
+4. [Layer 3 interfaces, security zones and routing](#network)
+5. [Address and service objects](#objects)
+6. [Security policy implementation](#policies)
+7. [Source NAT and candidate review](#nat)
+8. [Validation and commit](#commit)
+9. [Post-change verification](#verification)
+10. [Implementation results](#results)
+11. [Repository structure](#repository)
 
-</details>
+<br>
 
-| Interface | Zone | Address | Purpose |
+<a id="architecture"></a>
+## 01 — Architecture
+
+![Configured NGFW network topology, security zones and policy flows](./assets/topology.png)
+
+*Figure 1. Logical network topology showing interface assignments, zone boundaries, virtual routing, interzone security policy, and outbound source NAT. The flow arrows represent configured policy intent, not captured data-plane traffic.*
+
+<br>
+
+| Interface | Security zone | Configured IP | Function |
 |---|---|---|---|
-| `ethernet1/3` | `LAB-TRUST` | `10.10.10.1/24` | Trusted client segment and administrator source |
-| `ethernet1/4` | `LAB-SERVERS` | `10.20.20.1/24` | Isolated server segment |
-| `ethernet1/5` | `LAB-UNTRUST` | `203.0.113.2/30` | Simulated outside-facing interface and source-NAT egress |
-| `LAB-VR` | — | `0.0.0.0/0` via `203.0.113.1` | Configured default path; **not present as an active route** in the final capture |
+| `ethernet1/3` | `LAB-TRUST` | `10.10.10.1/24` | Client network gateway |
+| `ethernet1/4` | `LAB-SERVERS` | `10.20.20.1/24` | Server network gateway |
+| `ethernet1/5` | `LAB-UNTRUST` | `203.0.113.2/30` | External-facing interface and source-NAT address |
 
-`10.10.10.0/24` and `10.20.20.0/24` are private lab subnets. `203.0.113.0/24` and `198.51.100.0/24` are documentation-address ranges; they do not represent a working public ISP connection in this project. Existing factory virtual-wire interfaces and their lowercase `trust`/`untrust` zones are distinct from these `LAB-*` zones.
+All three interfaces belong to virtual router `LAB-VR`. A default route was configured through `ethernet1/5` toward next hop `203.0.113.1`.
 
-[↑ Back to Table of Contents](#table-of-contents)
+The private client and server networks are configuration addresses. The external-facing addresses use reserved documentation space (`203.0.113.0/24` and `198.51.100.0/24`); they are not evidence of an active ISP circuit. The `LAB-*` names are the identifiers entered in PAN-OS and are retained exactly as configured.
 
----
-
-## 02 | Bootloader and Factory Restoration
-
-The evidence begins during the appliance startup sequence. The console exposed the PAN-OS bootloader and hardware initialization output before entering the maintenance recovery environment.
-
-**Evidence 01 — Physical appliance boot and hardware initialization.** The screen reports bootloader information, memory initialization, and storage detection. Hardware-specific identifiers are redacted.
-
-![PA-820 bootloader showing initial hardware startup and memory initialization](./evidence/s1.png)
-
-**Evidence 02 — Maintenance Recovery Tool.** The appliance is in its maintenance environment. This is the recovery interface used for subsequent reset operations.
-
-![PAN-OS maintenance recovery tool main screen](./evidence/s2.png)
-
-**Evidence 03 — Factory reset and scrub selection.** The device presents reset options and indicates a selected scrub method. This is a destructive operation; the image documents the selected on-screen workflow, not proof of compliance with any external erasure standard.
-
-![Factory reset screen with scrub and reset options](./evidence/s3.png)
-
-**Evidence 04 — Storage scrubbing in progress.** The recovery console displays the scrubbing operation and its progress output.
-
-![Console output showing scrub operation in progress](./evidence/s4.png)
-
-**Evidence 05 — Reset status and success.** The screen explicitly reports **`Scrub Status: Success`** and **`Factory Reset Status: Success`**.
-
-![Recovery status showing successful scrub and factory reset](./evidence/s5.png)
-
-**Engineering purpose:** Restore the appliance to a clean configuration starting point before building new policy objects. A factory reset and a data-scrubbing workflow are different operations; the evidence records both statuses without making broader security-certification claims.
-
-[↑ Back to Table of Contents](#table-of-contents)
+[Back to contents](#contents)
 
 ---
 
-## 03 | Administrative Console and Initial CLI
+<a id="restoration"></a>
+## 02 — Appliance Restoration
 
-After reboot, the console displays administrator login, an interactive password-change sequence, and the operational PAN-OS prompt `admin@PA-820>`.
+The implementation began at the hardware console. Startup and storage initialization were reviewed before entering the maintenance recovery environment.
+
+### Boot and maintenance environment
+
+**Figure 2 — Bootloader and hardware initialization.** The console records device startup, memory initialization and storage detection. Unique hardware identifiers have been redacted.
+
+![Bootloader and hardware initialization](./evidence/s1.png)
+
+<br>
+
+**Figure 3 — Maintenance Recovery Tool.** Recovery access was established through the appliance's local maintenance interface.
+
+![Maintenance recovery interface](./evidence/s2.png)
+
+<br>
+
+### Factory restoration and storage scrub
+
+**Figure 4 — Reset and scrub selection.** The maintenance interface shows the selected restoration and storage-scrub workflow.
+
+![Factory reset and scrub selections](./evidence/s3.png)
+
+<br>
+
+**Figure 5 — Scrub execution.** Console output records the storage-scrub operation in progress.
+
+![Storage scrub in progress](./evidence/s4.png)
+
+<br>
+
+**Figure 6 — Restoration result.** The maintenance screen reports `Scrub Status: Success` and `Factory Reset Status: Success`.
+
+![Scrub and factory reset success](./evidence/s5.png)
+
+The reset established a clean configuration starting point for the subsequent firewall changes. The success messages are recorded as device-reported results; no independent erasure certification is asserted.
+
+[Back to contents](#contents)
+
+---
+
+<a id="baseline"></a>
+## 03 — Console Preparation and Baseline Inspection
+
+After restart, I accessed the PAN-OS operational CLI through the local serial console. An interactive administrator password change was completed without exposing the credential in the repository.
+
+### Console output and system logs
 
 ```text
 set cli terminal height 500
@@ -139,27 +120,20 @@ clear log system
 show log system
 ```
 
-| Command / console action | What it does and why it was used |
-|---|---|
-| Interactive administrator password change | Replaces the reset credential during the first login flow. The secret itself is not recorded in this repository. |
-| `set cli terminal height 500` | Raises the terminal's display-height limit so long outputs are less likely to pause or paginate. Useful when capturing evidence. |
-| `set cli terminal width 500` | Expands the CLI's logical output width to reduce line wrapping during large configuration reviews. It does **not** guarantee that the Tera Term window itself displays 500 columns. |
-| `clear log system` | Deletes the local system-log records after confirmation. This is destructive and was recorded during this isolated reset procedure; it should not be treated as a normal production-maintenance step. |
-| `show log system` | Reads system-log entries after the clear operation. The captured table shows no entries at that moment. |
+**Command notes**
 
-**Evidence 06 — Login, CLI display controls, and system-log check.**
+- `set cli terminal height 500` — Increases the CLI output height to reduce pagination during long configuration captures.
+- `set cli terminal width 500` — Increases logical output width to reduce command wrapping; it does not resize the Tera Term window.
+- `clear log system` — Clears the local system log after confirmation. This destructive action belongs to the recorded reset workflow and is not a routine production change.
+- `show log system` — Queries system-log records after the clear operation; the captured result shows no entries at that point.
 
-![Administrator login and terminal settings, system log removal and verification](./evidence/s6.png)
+**Figure 7 — Administrative console preparation.** Login, CLI display settings, and the system-log query are recorded together.
 
-> **Operational caution:** In a managed environment, log deletion should occur only with authorization and in accordance with log-retention and incident-preservation requirements.
+![Console settings and system-log inspection](./evidence/s6.png)
 
-[↑ Back to Table of Contents](#table-of-contents)
+<br>
 
----
-
-## 04 | Baseline Configuration Inspection
-
-The initial inspection checked what configuration was stored on the firewall after recovery. This established the starting state and provided comparison points for the new Layer 3 design.
+### Existing configuration and storage inspection
 
 ```text
 show vlan all
@@ -169,41 +143,52 @@ show config running
 show system disk-space
 ```
 
-| Command | Terminal behavior / engineering purpose |
-|---|---|
-| `show vlan all` | Queries Layer 2 VLAN configuration. The screen responds `Server error : vlan configuration not found`, which is an observed result—not evidence that the appliance has no networking configuration whatsoever. |
-| `show config saved running-config.xml` | Reads the saved running-configuration XML file, allowing a baseline review of settings retained on the appliance. |
-| `show config saved candidate-config` | Displays the saved candidate-configuration content that can be compared with the current running configuration. |
-| `show config running` | Displays currently committed configuration in hierarchical form in these screenshots, including administrative and shared sections. |
-| `show system disk-space` | Reports filesystem capacity, used space, and available space. Useful for assessing the health of local storage before major changes. |
+**Command notes**
 
-**Evidence 07 — VLAN query and saved running configuration.**
+- `show vlan all` — Queries VLAN configuration. The returned message, `Server error : vlan configuration not found`, is documented as observed.
+- `show config saved running-config.xml` — Reads the saved running-configuration XML for baseline review.
+- `show config saved candidate-config` — Reads saved candidate configuration data for comparison.
+- `show config running` — Displays the committed running configuration, including existing system and shared settings.
+- `show system disk-space` — Reports filesystem utilization and available local storage.
 
-![VLAN query and saved running configuration output](./evidence/s7.png)
+**Figure 8 — VLAN query and saved running configuration.**
 
-**Evidence 08 — Saved candidate configuration.**
+![VLAN query and saved running configuration](./evidence/s7.png)
 
-![Saved candidate configuration contents](./evidence/s8.png)
+<br>
 
-**Evidence 09 — Saved running-configuration XML inspection.**
+**Figure 9 — Saved candidate configuration inspection.**
 
-![Additional saved running configuration inspection](./evidence/s9.png)
+![Saved candidate configuration](./evidence/s8.png)
 
-**Evidence 10 — Running configuration inspection.**
+<br>
 
-![Current running configuration reviewed in the console](./evidence/s10.png)
+**Figure 10 — Saved running-configuration inspection.**
 
-**Evidence 11 — System metadata and disk-space verification.** The upper part of the image continues system information; the lower part records `show system disk-space`.
+![Saved running configuration XML](./evidence/s9.png)
 
-![System information followed by disk-space usage](./evidence/s11.png)
+<br>
 
-[↑ Back to Table of Contents](#table-of-contents)
+**Figure 11 — Active running-configuration inspection.** The displayed administrative values are masked where necessary.
+
+![Running configuration](./evidence/s10.png)
+
+<br>
+
+**Figure 12 — Device metadata and disk usage.** Storage availability was checked before subsequent configuration work.
+
+![System metadata and storage utilization](./evidence/s11.png)
+
+The baseline review established the state of the appliance after restoration and before the new interface, zone, routing and policy configuration.
+
+[Back to contents](#contents)
 
 ---
 
-## 05 | Layer 3 Interface Assignment
+<a id="network"></a>
+## 04 — Layer 3 Interfaces, Security Zones and Routing
 
-Configuration commands are entered after moving from operational mode (`>`) into configuration mode (`#`):
+### Interface addressing
 
 ```text
 configure
@@ -212,24 +197,9 @@ set network interface ethernet ethernet1/4 layer3 ip 10.20.20.1/24
 set network interface ethernet ethernet1/5 layer3 ip 203.0.113.2/30
 ```
 
-| Command | Technical function |
-|---|---|
-| `configure` | Switches to PAN-OS candidate-configuration mode. `set` commands modify the pending configuration until committed. |
-| `set network interface ethernet ethernet1/3 layer3 ip 10.10.10.1/24` | Assigns the trusted segment's Layer 3 gateway address to the third Ethernet interface. |
-| `set network interface ethernet ethernet1/4 layer3 ip 10.20.20.1/24` | Assigns the server segment's Layer 3 gateway address to the fourth Ethernet interface. |
-| `set network interface ethernet ethernet1/5 layer3 ip 203.0.113.2/30` | Sets a reserved documentation IP on the outside-facing test interface. This does not itself establish WAN connectivity. |
+`configure` enters candidate-configuration mode, where subsequent `set` operations are staged until committed.
 
-**Design rationale:** An explicit Layer 3 interface assignment allows routing and policy evaluation between separate IP subnets. The interfaces are later associated with security zones and `LAB-VR`; IP assignment alone does not complete forwarding or access-control configuration.
-
-**Evidence 12 — CLI entry into configuration mode, three IP assignments, and the beginning of zone and virtual-router commands.**
-
-![Creation of Layer 3 interfaces, security zones, and virtual router membership](./evidence/s12.png)
-
-[↑ Back to Table of Contents](#table-of-contents)
-
----
-
-## 06 | Security Zones, Virtual Router, and Static Route
+Each `set network interface ethernet ... layer3 ip` command assigns a Layer 3 address to a specific Ethernet interface: `ethernet1/3` for clients, `ethernet1/4` for servers, and `ethernet1/5` for the external-facing segment. Addressing alone does not establish routing or permit interzone traffic.
 
 ### Security-zone membership
 
@@ -239,15 +209,15 @@ set zone LAB-SERVERS network layer3 ethernet1/4
 set zone LAB-UNTRUST network layer3 ethernet1/5
 ```
 
-| Command | Technical function |
-|---|---|
-| `set zone LAB-TRUST network layer3 ethernet1/3` | Associates the trusted client-facing interface with the named Layer 3 security zone `LAB-TRUST`. |
-| `set zone LAB-SERVERS network layer3 ethernet1/4` | Associates the server-facing interface with `LAB-SERVERS`. |
-| `set zone LAB-UNTRUST network layer3 ethernet1/5` | Associates the simulated external interface with `LAB-UNTRUST`. |
+These commands associate the three interfaces with their respective Layer 3 security zones. Zones supply the source and destination contexts used by the security and NAT rulebases.
 
-Zones provide the **source and destination contexts** that later security and NAT rules match. A zone is a logical policy boundary, not a VLAN and not a guarantee of traffic isolation without appropriate rules.
+**Figure 13 — Interface configuration and initial zone / virtual-router assignments.**
 
-### Virtual-router membership and configured default route
+![Layer 3 interfaces, zones and virtual router configuration](./evidence/s12.png)
+
+<br>
+
+### Virtual-router membership and static route
 
 ```text
 set network virtual-router LAB-VR interface ethernet1/3
@@ -256,26 +226,18 @@ set network virtual-router LAB-VR interface ethernet1/5
 set network virtual-router LAB-VR routing-table ip static-route LAB-DEFAULT destination 0.0.0.0/0 interface ethernet1/5 nexthop ip-address 203.0.113.1
 ```
 
-| Command | Technical function |
-|---|---|
-| `set network virtual-router LAB-VR interface ethernet1/3` | Adds the trusted segment's interface to virtual router `LAB-VR`. |
-| `set network virtual-router LAB-VR interface ethernet1/4` | Adds the server segment's interface to the same routing instance. |
-| `set network virtual-router LAB-VR interface ethernet1/5` | Adds the outside-facing test interface to that routing instance. |
-| `set network virtual-router LAB-VR routing-table ip static-route LAB-DEFAULT ...` | Defines the named default route `LAB-DEFAULT`, matching destinations not reached by more specific routes, using `ethernet1/5` and next hop `203.0.113.1`. The line is shown here unwrapped for readability; the actual terminal displays it across lines. |
+The three interface-membership commands place the client, server and external-facing interfaces into the same virtual router, `LAB-VR`.
 
-**Configured does not mean active:** The later operational route query displays `total routes shown 0`. With the physical interfaces down, this README does not claim the configured default route was installed in the forwarding table or that a gateway responded.
+The final command creates the named static route `LAB-DEFAULT`, identifying `ethernet1/5` as the egress interface and `203.0.113.1` as the next hop for destinations matching `0.0.0.0/0`. It defines a route in configuration; operational installation is checked separately after commit.
 
-**Evidence 13 — Continuation of static-route configuration and subsequent address-object commands.**
+The CLI capture containing the completed route entry continues directly into the address-object work shown in the following section.
 
-![Continued default route setup and address object commands](./evidence/s13.png)
-
-[↑ Back to Table of Contents](#table-of-contents)
+[Back to contents](#contents)
 
 ---
 
-## 07 | Address and Service Objects
-
-Reusable PAN-OS objects make rulebases more consistent and auditable by keeping subnet and host definitions separate from individual rules.
+<a id="objects"></a>
+## 05 — Address and Service Objects
 
 ```text
 set address LAB-CLIENT-NET ip-netmask 10.10.10.0/24
@@ -285,88 +247,72 @@ set address LAB-SERVER ip-netmask 10.20.20.10/32
 set service LAB-HTTPS protocol tcp port 443
 ```
 
-| Command | Technical function |
-|---|---|
-| `set address LAB-CLIENT-NET ip-netmask 10.10.10.0/24` | Creates a named subnet object covering the trusted client network. |
-| `set address LAB-SERVER-NET ip-netmask 10.20.20.0/24` | Creates a named subnet object covering the server network. |
-| `set address LAB-ADMIN ip-netmask 10.10.10.10/32` | Defines one administrator endpoint as an exact `/32` host object. |
-| `set address LAB-SERVER ip-netmask 10.20.20.10/32` | Defines one server endpoint as an exact `/32` host object. |
-| `set service LAB-HTTPS protocol tcp port 443` | Creates a reusable TCP/443 service object. The documented SSL allow rule uses `application-default` instead of this object, so the object is created but not shown as referenced by that rule. |
+The first two commands define reusable network objects for the client and server subnets. `LAB-ADMIN` and `LAB-SERVER` create individual `/32` host objects, allowing the SSH exception to match one administrator and one server rather than an entire subnet.
 
-**Evidence:** These commands appear in the second half of [s13.png](./evidence/s13.png), immediately following the routing configuration. The full image is embedded in Section 06. Object creation is independently checked later with `show address` in Section 10.
+`set service LAB-HTTPS protocol tcp port 443` creates a TCP/443 service object. The recorded outbound SSL policy uses `application-default`, so this service object was created but is not shown as the selected service in that rule.
 
-[↑ Back to Table of Contents](#table-of-contents)
+**Figure 14 — Completed default route and address/service object creation.**
+
+![Static route completion and address and service object commands](./evidence/s13.png)
+
+[Back to contents](#contents)
 
 ---
 
-## 08 | Security Rulebase Implementation
+<a id="policies"></a>
+## 06 — Security Policy Implementation
 
-The policy design contains **three named lab rules**: a narrowly scoped SSH exception, a broad interzone server-access deny, and an application-aware SSL egress allow rule. PAN-OS processes security policy according to its ordered matching rules; rule placement and overlapping defaults matter.
+Three application-aware rules were defined in the security rulebase. The narrowly scoped administrator SSH exception is positioned ahead of the broader server-access deny.
 
-### Rule A — Administrator SSH to a specific server
+### Administrator SSH — allow
 
 ```text
 set rulebase security rules LAB-Allow-Admin-SSH from LAB-TRUST to LAB-SERVERS source LAB-ADMIN destination LAB-SERVER application ssh service application-default action allow
 ```
 
-This creates an allow rule from the trusted zone to the server zone **only when** the source is `LAB-ADMIN` (`10.10.10.10/32`), destination is `LAB-SERVER` (`10.20.20.10/32`), and identified application is `ssh`. `service application-default` requires the application to use its expected service ports, rather than permitting arbitrary TCP/UDP ports. The matching rule is an exception to the broader restriction defined next.
+This rule allows the `ssh` application from the single administrator address (`10.10.10.10/32`) to the designated server (`10.20.20.10/32`) across the trusted and server zones. `application-default` restricts the service to the application's default port behavior.
 
-### Rule B — Deny other trusted-to-server access
+### Other client-to-server access — deny
 
 ```text
 set rulebase security rules LAB-Deny-Server-Access from LAB-TRUST to LAB-SERVERS source LAB-CLIENT-NET destination LAB-SERVER-NET application any service any action deny
 ```
 
-This defines an explicit deny for client-network traffic reaching the server-network subnet in the indicated source/destination zones, across all applications and services **that match this rule**. The narrower administrator SSH exception must precede the deny rule for the intended behavior.
+This rule denies traffic that matches the client-to-server zone and subnet conditions, regardless of application or service. Rule order is significant: the specific administrator SSH allowance must be evaluated before the broader deny for the intended exception to apply.
 
-### Rule C — Application-aware SSL egress
+### Outbound SSL — allow and log
 
 ```text
 set rulebase security rules LAB-Allow-HTTPS from LAB-TRUST to LAB-UNTRUST source LAB-CLIENT-NET destination any application ssl service application-default action allow
 set rulebase security rules LAB-Allow-HTTPS log-end yes
 ```
 
-The first command permits recognized `ssl` application traffic from the trusted client subnet toward the lab untrust zone, subject to the application's default service. The second enables **session-end logging** for that specific rule, providing an audit point when qualifying traffic is actually generated. Creating the logging setting does not itself prove that any traffic was logged.
+The first command allows recognized `ssl` traffic from the client subnet to the external-facing zone when the application and default service criteria match.
 
-**Evidence 14 — Security-rule entry and SSL session-end logging.** The screenshot captures the final portion of the policy configuration, including the explicit `log-end yes` command. The full rule definitions are subsequently inspected with `show rulebase security` and `show running security-policy`.
+The second enables session-end logging for this rule. It sets the logging behavior; it does not prove that a session was generated or logged.
 
-![Creation of security rules and SSL end-of-session logging](./evidence/s14.png)
+**Figure 15 — Security-policy entry.** This capture shows the final portion of rule creation and the SSL logging setting. The complete candidate rule definitions are inspected later with `show rulebase security`.
 
-> **Existing configuration note:** Final running-policy output also contains a factory/default-style `rule1` in lowercase `trust` → `untrust` zones. Those are separate from `LAB-TRUST`/`LAB-UNTRUST`. Its continued presence is explicitly documented rather than implying that the newly defined lab rules are the entire device policy.
+![Security policy and session-end logging commands](./evidence/s14.png)
 
-[↑ Back to Table of Contents](#table-of-contents)
+[Back to contents](#contents)
 
 ---
 
-## 09 | Outbound Source NAT
+<a id="nat"></a>
+## 07 — Source NAT and Candidate Review
+
+### Outbound source translation
 
 ```text
 set rulebase nat rules LAB-OUTBOUND-SNAT from LAB-TRUST to LAB-UNTRUST source LAB-CLIENT-NET destination any service any to-interface ethernet1/5 source-translation dynamic-ip-and-port interface-address interface ethernet1/5
 ```
 
-**What the command establishes:**
+`LAB-OUTBOUND-SNAT` matches traffic originating in `LAB-TRUST`, directed toward `LAB-UNTRUST`, sourced from `LAB-CLIENT-NET`, and egressing through `ethernet1/5`.
 
-| Field | Technical meaning |
-|---|---|
-| `LAB-OUTBOUND-SNAT` | Descriptive identifier for the NAT rule |
-| `from LAB-TRUST to LAB-UNTRUST` | Original-packet ingress and destination-zone match |
-| `source LAB-CLIENT-NET` | Translation applies to traffic sourced from the configured client subnet |
-| `destination any service any` | Does not narrow NAT eligibility by destination host or service |
-| `to-interface ethernet1/5` | Matches egress via the specified outside test interface |
-| `source-translation dynamic-ip-and-port` | Performs dynamic source-address/port translation (PAT) for matching sessions |
-| `interface-address interface ethernet1/5` | Uses the selected interface's IP address as the translated source (configured `203.0.113.2`) |
+`source-translation dynamic-ip-and-port` selects dynamic source-address and port translation. `interface-address interface ethernet1/5` selects the configured egress interface address as the translated source. This is source NAT, not destination NAT or port forwarding.
 
-This is an **outbound source translation**, not destination NAT, port forwarding, or proof that internet traffic was transmitted. PAN-OS security-policy allowance and routing must also support any intended flow.
-
-The NAT rule is inspected in **[s18.png](./evidence/s18.png)** and later visible as deployed policy in **[s24.png](./evidence/s24.png)** and **[s25.png](./evidence/s25.png)**.
-
-[↑ Back to Table of Contents](#table-of-contents)
-
----
-
-## 10 | Candidate Review, Validation, and Commit
-
-### Candidate-configuration review
+### Candidate-configuration inspection
 
 ```text
 show network
@@ -376,27 +322,42 @@ show rulebase security
 show rulebase nat
 ```
 
-| Command | What was checked |
-|---|---|
-| `show network` | Displays the pending network configuration: Layer 3 interfaces, their IP addresses, and related network settings. |
-| `show zone` | Confirms named security-zone objects and their interface associations. |
-| `show address` | Confirms the reusable client, server, admin, and host address objects. |
-| `show rulebase security` | Inspects rule definitions, their match conditions, actions, and displayed ordering in the candidate configuration. |
-| `show rulebase nat` | Confirms the dynamic source-NAT rule and its interface-address translation behavior. |
+- `show network` — Reviews configured interfaces, addressing and virtual-router settings in candidate configuration.
+- `show zone` — Confirms zone membership and interface bindings.
+- `show address` — Lists the client, server and host address objects.
+- `show rulebase security` — Shows the candidate security rules and matching criteria.
+- `show rulebase nat` — Shows the NAT rule and its source-translation definition.
 
-**Evidence 15 — Network configuration review.**
+**Figure 16 — Network configuration review.**
 
-![Candidate network configuration including Layer 3 addresses](./evidence/s15.png)
+![Candidate network configuration](./evidence/s15.png)
 
-**Evidence 16 — Zone associations.** The lower sections contain `LAB-TRUST`, `LAB-SERVERS`, and `LAB-UNTRUST` mapped to their corresponding Ethernet interfaces.
+<br>
 
-![Security-zone configuration with lab interfaces assigned](./evidence/s16.png)
+**Figure 17 — Security-zone inspection.** The configured `LAB-*` zones appear alongside pre-existing lowercase `trust` and `untrust` virtual-wire zones.
 
-**Evidence 17 — Address objects and security-rulebase review.** The output confirms four address objects and begins displaying the policy rule definitions, including administrator SSH and the server-access deny.
+![Security zone configuration](./evidence/s16.png)
 
-![Address object inspection and security-rulebase output](./evidence/s17.png)
+<br>
 
-### Validation and transactional commit
+**Figure 18 — Address objects and security-rule review.** This captures the configured objects and the start of the ordered security rulebase.
+
+![Address and security rulebase review](./evidence/s17.png)
+
+<br>
+
+**Figure 19 — NAT rule inspection and validation submission.** The candidate NAT output includes `LAB-OUTBOUND-SNAT`, followed by a `validate full` request.
+
+![NAT configuration and validation submission](./evidence/s18.png)
+
+[Back to contents](#contents)
+
+---
+
+<a id="commit"></a>
+## 08 — Validation and Commit
+
+The reviewed candidate configuration was submitted for full validation before manual commit.
 
 ```text
 validate full
@@ -408,37 +369,30 @@ exit
 show jobs all
 ```
 
-| Command | Effect and interpretation |
-|---|---|
-| `validate full` | Submits a full candidate-configuration validation job. A queued job is not the same as successful validation; its final status is checked separately. |
-| `exit` (from `#`) | Returns from candidate-configuration mode to operational mode (`>`). |
-| `show jobs all` | Lists background operations with job IDs, state, result, and completion data. Here it is used to inspect validation and commit results. |
-| `configure` | Returns to configuration mode for a manual commit. |
-| `commit` | Requests that the validated candidate configuration be applied as the running configuration. This is the actual deployment step; unlike a `set` command, it makes the change operational when successful. |
-| `exit` (after commit) | Returns to operational mode for verification. |
-| `show jobs all` (final) | Confirms the outcome of the committed change, rather than inferring success from the absence of an immediate CLI error. |
+`validate full` submits a full candidate-configuration validation job. After leaving configuration mode with `exit`, `show jobs all` is used to inspect the job result rather than assuming that submission alone indicates success.
 
-**Evidence 18 — NAT candidate review and validation submission.** `validate full` returns **validation job ID 4**.
+`configure` re-enters candidate-configuration mode. `commit` requests that PAN-OS apply the candidate changes to the running configuration. The final `exit` and `show jobs all` provide the post-commit job record.
 
-![NAT rule configuration and full validation job queued](./evidence/s18.png)
+**Figure 20 — Validation result and manual commit.** The CLI records validation job `4` and the subsequent manual commit job `5`.
 
-**Evidence 19 — Job status review and commit execution.** The image includes the validation results and the manual invocation of `commit`, with **commit job ID 5** in progress.
+![Validation job and commit execution](./evidence/s19.png)
 
-![Validation job review and commit launch](./evidence/s19.png)
+<br>
 
-**Evidence 20 — Completed job status.** The later `show jobs all` confirms **job 4: `FIN / OK` (validate)** and **job 5: `FIN / OK` (commit)**. An **earlier automatic commit job 2 shows `FIN / FAIL`** in the same historical list; that older status is not concealed or conflated with the successful manual commit.
+**Figure 21 — Commit job history.** Validation job `4` and manual commit job `5` both report **`FIN / OK`**.
 
-![Job history confirming final full validation and manual commit successful](./evidence/s20.png)
+![PAN-OS validation and commit job results](./evidence/s20.png)
 
-**Change-control interpretation:** The successful manual commit establishes that PAN-OS accepted and applied the candidate configuration. It does **not** independently establish reachability, routing convergence, physical link state, or successful data-plane sessions.
+An earlier automatic commit, job `2`, appears in the historical job list with **`FIN / FAIL`**. Its cause is not established by the captured output. The later successful validation and manual commit are recorded separately, without attributing an unverified cause to the earlier failure.
 
-[↑ Back to Table of Contents](#table-of-contents)
+[Back to contents](#contents)
 
 ---
 
-## 11 | Operational Verification and Evidence
+<a id="verification"></a>
+## 09 — Post-Change Verification
 
-Once the manual commit completed, the console was used to inspect runtime and committed state.
+After the manual commit, operational commands were used to inspect system metadata, link state, routing, the deployed security rulebase, source NAT, and final configuration state.
 
 ```text
 show system info
@@ -451,109 +405,84 @@ set cli config-output-format set
 show config running
 ```
 
-| Command | Reason for use and observed significance |
+**Command notes**
+
+- `show system info` — Confirms platform, PAN-OS release and system metadata; device identifiers are redacted in the published capture.
+- `show interface all` — Reviews interface addressing, zone/VR associations and physical link status.
+- `show routing route` — Reads the operational routing table for the virtual router.
+- `show running security-policy` — Displays the policy representation applied after commit.
+- `show running nat-policy` — Displays the applied source-NAT policy.
+- `show jobs all` — Rechecks validation and commit status.
+- `set cli config-output-format set` — Requests set-style configuration output for supported displays; the captured follow-up output remains hierarchical.
+- `show config running` — Reads the committed running configuration for final inspection.
+
+**Figure 22 — System and software information.** The console identifies the PA-820 hardware and PAN-OS 11.1.4-h7.
+
+![System information and PAN-OS version](./evidence/s21.png)
+
+<br>
+
+**Figure 23 — Interface state.** The defined interfaces and logical associations are visible; the relevant physical Ethernet links report **down**.
+
+![Operational interface status](./evidence/s22.png)
+
+<br>
+
+**Figure 24 — Routing and running security policy.** `LAB-VR` reports **`total routes shown 0`**. The screenshot also begins the deployed security-policy output.
+
+![Operational routes and running security rules](./evidence/s23.png)
+
+<br>
+
+**Figure 25 — Running NAT policy and job records.** The post-commit NAT output shows the outbound source translation and target interface.
+
+![Running NAT policy and PAN-OS jobs](./evidence/s24.png)
+
+<br>
+
+**Figure 26 — Final NAT and running-configuration inspection.** The final capture includes running NAT, job status, the CLI output-format request and the beginning of running-configuration review.
+
+![Final NAT and running configuration review](./evidence/s25.png)
+
+The configured static route was present in the candidate configuration but **not active in the operational routing table** at the time of capture. With the physical interfaces down, no active forwarding path or end-to-end traffic result is claimed.
+
+[Back to contents](#contents)
+
+---
+
+<a id="results"></a>
+## 10 — Implementation Results
+
+| Workstream | Recorded result |
 |---|---|
-| `show system info` | Identifies the physical platform, installed PAN-OS build, hostname, and management/system metadata; device-specific identifiers were redacted. Shows **PA-820 / PAN-OS 11.1.4-h7**. |
-| `show interface all` | Displays physical and logical interfaces, link state, configured addresses, and zone/VR assignments. The test Ethernet ports are listed as **down**, while the logical configuration is present. MAC addresses are redacted. |
-| `show routing route` | Queries the operational routing table. The image displays **`VIRTUAL ROUTER: LAB-VR`** followed by **`total routes shown 0`**—a decisive distinction from the configured static-route statement. |
-| `show running security-policy` | Displays the compiled/deployed running security policy with indexed rules and effective match conditions; it demonstrates the lab rules are present after commit. |
-| `show running nat-policy` | Displays the deployed NAT policy and shows `LAB-OUTBOUND-SNAT` translating to the `ethernet1/5` interface address. |
-| `show jobs all` | Rechecks final management-plane job results, including the successful validation and manual commit. |
-| `set cli config-output-format set` | Requests set-style configuration output for supported CLI configuration displays. The subsequent captured `show config running` view is hierarchical; this README does not misrepresent it as a displayed line-by-line `set` export. |
-| `show config running` | Performs a final inspection of the committed running configuration. Sensitive credential values in the displayed output have been masked. |
+| Appliance restoration | Factory reset and scrub each reported success in maintenance mode |
+| Layer 3 configuration | Three interfaces addressed and assigned to security zones |
+| Virtual routing | `LAB-VR` and named default-route configuration created |
+| Security policy | SSH exception, interzone deny and SSL egress allow configured |
+| Source NAT | Dynamic IP-and-port source translation defined for `ethernet1/5` |
+| Configuration validation | Job `4` — **`FIN / OK`** |
+| Manual commit | Job `5` — **`FIN / OK`** |
+| Operational state | Interfaces down; operational routing table contained zero routes |
 
-**Evidence 21 — Device metadata and PAN-OS software version.**
+**Verification scope.** This record confirms restoration status, configured policy intent, candidate review, successful validation, successful commit, and post-change configuration inspection. It does not establish live packet delivery, policy-match test results, or a connected external network.
 
-![Show system info with PA-820 hardware and PAN-OS version](./evidence/s21.png)
+**Existing configuration.** The deployed security policy also includes a pre-existing `rule1` associated with the default lowercase `trust` and `untrust` zones. That rule is separate from the newly configured `LAB-*` policy and is not represented as part of the three-rule design.
 
-**Evidence 22 — Physical and logical interface state.** The `LAB-*` zone/virtual-router mappings are visible, but Ethernet link state is **down**. This is consistent with the explicitly offline setup.
+**Evidence protection.** All 25 terminal screenshots have been redacted to exclude serial numbers, MAC addresses, sensitive device identifiers and credential hashes. The configured addresses, policy names and command output needed to explain the implementation remain visible.
 
-![Show interface all confirming lab interfaces and their down operational state](./evidence/s22.png)
-
-**Evidence 23 — Operational routing table and running security policy.** The route query reports **zero active routes** in `LAB-VR`; the same capture begins the post-commit running security policy output.
-
-![Operational routing table with zero routes and deployed security policy](./evidence/s23.png)
-
-**Evidence 24 — Running NAT policy and job history.** The NAT output identifies the source translation and egress interface, followed by commit and validation job evidence.
-
-![Deployed NAT policy and final job history](./evidence/s24.png)
-
-**Evidence 25 — NAT verification and final running-configuration capture.** This final screen includes deployed NAT, successful job records, a CLI output-format request, and the start of a running-configuration inspection.
-
-![Final NAT policy, job results, and running configuration review](./evidence/s25.png)
-
-[↑ Back to Table of Contents](#table-of-contents)
+[Back to contents](#contents)
 
 ---
 
-## 12 | Test Plan Versus Verified Execution
-
-The supplied CLI guide also contains these **planned offline policy-matching commands**. They are included for reproducibility, but **the 25 screenshots do not show these commands being executed or their results**. They must not be presented as completed tests.
+<a id="repository"></a>
+## 11 — Repository Structure
 
 ```text
-# Planned test A — authorized administrator SSH
- test security-policy-match from LAB-TRUST to LAB-SERVERS source 10.10.10.10 destination 10.20.20.10 application ssh protocol 6 destination-port 22
-
-# Planned test B — another client attempting SSH to the same server
- test security-policy-match from LAB-TRUST to LAB-SERVERS source 10.10.10.20 destination 10.20.20.10 application ssh protocol 6 destination-port 22
-
-# Planned test C — client SSL traffic toward a documentation endpoint
- test security-policy-match from LAB-TRUST to LAB-UNTRUST source 10.10.10.20 destination 198.51.100.10 application ssl protocol 6 destination-port 443
-
-# Planned test D — matching an outbound NAT flow
- test nat-policy-match from LAB-TRUST to LAB-UNTRUST source 10.10.10.20 destination 198.51.100.10 source-port 50000 destination-port 443 protocol 6 to-interface ethernet1/5
-```
-
-| Planned CLI command | What it is intended to establish | Evidence status |
-|---|---|---|
-| `test security-policy-match` (admin SSH) | Which security rule would match an SSH flow from the named admin host to the protected server | **Not captured** |
-| `test security-policy-match` (other client SSH) | Whether a non-admin client would be matched by the broader deny rule | **Not captured** |
-| `test security-policy-match` (SSL) | Which security rule would match a candidate TLS/SSL egress session | **Not captured** |
-| `test nat-policy-match` | Which source-NAT rule would be selected for a proposed outbound TCP session | **Not captured** |
-
-These are **control-plane match simulations**, not substitutes for generating and inspecting actual end-to-end traffic. They are preserved here only as unexecuted follow-up steps from the original written guide.
-
-[↑ Back to Table of Contents](#table-of-contents)
-
----
-
-## 13 | Results, Boundaries, and Engineering Notes
-
-### Confirmed outcomes
-
-- Restored the PA-820 through its maintenance factory-reset workflow; screenshots display both scrub and factory-reset success statuses.
-- Accessed the appliance via serial CLI and performed initial administrative inspection.
-- Built a three-interface, three-zone Layer 3 configuration and assigned the interfaces to a dedicated virtual router.
-- Defined client, server, and administrator address objects; an additional TCP/443 service object was created.
-- Defined administrator SSH allow, server-segment access deny, and SSL egress allow rules, including SSL end-of-session logging.
-- Defined dynamic-IP-and-port outbound source NAT against the interface address of `ethernet1/5`.
-- Confirmed **full configuration validation and manual commit completed successfully** (`FIN / OK`) and inspected running security/NAT policies.
-
-### Boundaries visible in the capture
-
-- **No traffic verification:** There are no screenshots of successful packets, active sessions, traffic logs, ping responses, or completed policy-match tests.
-- **No active routes:** `show routing route` reports **0** routes for `LAB-VR` at verification time. The configured static default route should not be described as an active working route.
-- **Interfaces offline:** `show interface all` reports test Ethernet links down, so there is no evidence of physical uplink connectivity.
-- **Pre-existing policy:** The running policy includes an existing `rule1` involving default lowercase zones. These were retained in the visible configuration and would need review before any production deployment.
-- **No production authorization implied:** The isolated addressing and observed validation do not demonstrate production readiness. Security profiles, logging retention, management exposure, HA design, threat-content currency, and live connectivity need independent review for deployment.
-- **Credential and ID protection:** Evidence is intentionally sanitized. The README does not publish login passwords, credential hashes, serial numbers, or MAC addresses.
-
-### Engineering takeaway
-
-This project demonstrates an end-to-end **management-plane implementation workflow** on physical enterprise firewall hardware: recovery, baseline assessment, object-oriented configuration, interzone access control, source-NAT definition, validation, transactional commit, and evidence-based post-change review. The final documentation distinguishes **accepted configuration** from **observed operational behavior**, which is essential in defensible infrastructure engineering reporting.
-
-[↑ Back to Table of Contents](#table-of-contents)
-
----
-
-## 14 | Repository Layout and References
-
-```text
-PA820-Offline-NGFW/
+.
 ├── README.md
 ├── assets/
-│   ├── brandons-logo.png    # personal branding image (already in your repo)
-│   └── topology.png         # network topology diagram
+│   ├── brandons-logo.png
+│   └── topology.png
 └── evidence/
     ├── s1.png
     ├── s2.png
@@ -561,21 +490,22 @@ PA820-Offline-NGFW/
     └── s25.png
 ```
 
-All image paths are relative to `README.md`. Keep **`brandons-logo.png`** and **`topology.png`** inside `assets/`, and all 25 redacted terminal screenshots inside `evidence/`. The logo is referenced but not bundled because the original logo image has not been supplied in this conversation.
-
-The original three-page CLI guide supplied with the project was used to cross-reference command intent. The screenshots—not the guide alone—determine whether this README calls an action executed, validated, committed, or unverified.
+The `assets/` directory contains the project topology and personal branding. The `evidence/` directory contains 25 redacted terminal captures, embedded above in the order of the implementation record.
 
 ---
 
-<div align="center">
+<p align="center">
+  <strong>Brandon Stevenson</strong><br>
+  IT Infrastructure · Enterprise Networking · Systems Administration · Software Programming
+</p>
 
-### Brandon Stevenson
+<p align="center">
+  Microsoft Azure Fundamentals (AZ-900) · A.A.S. Computer Information Technology (Software Programming)<br>
+  B.S. Cloud & Network Engineering — Western Governors University (In Progress)
+</p>
 
-**IT Infrastructure · Enterprise Networking · Systems Administration · Programming & Automation**
-
-Microsoft Azure Fundamentals (AZ-900) · A.A.S. in Computer Information Technology (Software Programming)  
-B.S. Cloud & Network Engineering — Western Governors University (In Progress)
-
-[**Professional Portfolio**](https://www.brandons-resume.com/) &nbsp;·&nbsp; [**GitHub**](https://github.com/brandon-in-tech) &nbsp;·&nbsp; [**LinkedIn**](https://www.linkedin.com/in/brandon-in-tech/)
-
-</div>
+<p align="center">
+  <a href="https://www.brandons-resume.com/">Portfolio</a> &nbsp;·&nbsp;
+  <a href="https://github.com/brandon-in-tech">GitHub</a> &nbsp;·&nbsp;
+  <a href="https://www.linkedin.com/in/brandon-in-tech/">LinkedIn</a>
+</p>
