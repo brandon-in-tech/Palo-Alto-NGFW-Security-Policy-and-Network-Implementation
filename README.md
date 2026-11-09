@@ -1,6 +1,6 @@
 <div align="center">
 
-# Palo Alto PA-820 | Offline NGFW Configuration & Policy Implementation
+# Palo Alto | Offline NGFW Configuration & Policy Implementation
 
 **Physical Appliance Restoration · PAN-OS CLI · Layer 3 Segmentation · Security Policy · Source NAT · Configuration Validation**
 
