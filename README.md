@@ -1,9 +1,9 @@
 
-
-<h1 align="center">Palo Alto Networks | NGFW Security Policy & Network Implementation</h1>
 <p align="center">
   <img src="./assets/brandons-logo.png" alt="Brandon Stevenson | IT Professional" width="185">
 </p>
+
+<h1 align="center">Palo Alto Networks | NGFW Security Policy & Network Implementation</h1>
 
 <p align="center"><strong>Personal Infrastructure Engineering Project</strong></p>
 
