@@ -20,6 +20,67 @@ All changes were made through the local maintenance interface and PAN-OS CLI. I 
 
 The work was performed on isolated enterprise hardware. The configuration and commit are verified in the terminal evidence; live connectivity and traffic enforcement were not tested. That distinction is retained in the results section rather than treating a successful commit as proof of a functioning external network.
 
+### Implementation Workflow
+
+The implementation followed a controlled sequence from appliance restoration through configuration validation and final evidence capture.
+
+```mermaid
+flowchart TD
+    A["Appliance Recovery<br/>Factory Restoration"]
+    B["Baseline Assessment<br/>System & Configuration Review"]
+    C["Network Implementation<br/>Layer 3 Interfaces · Zones · Virtual Routing"]
+    D["Security Implementation<br/>Access Policies · Address Objects · Source NAT"]
+    E["Configuration Validation<br/>Full Validation & Commit"]
+    F["Post-Change Verification<br/>Running Configuration · Job Status · CLI Evidence"]
+
+    A --> B --> C --> D --> E --> F
+
+    classDef phase fill:#eaf1f9,stroke:#315b84,color:#172d45,stroke-width:1.5px
+    classDef complete fill:#dcefe7,stroke:#28765a,color:#184b39,stroke-width:2px
+    class A,B,C,D,E phase
+    class F complete
+```
+
+<br>
+
+### Security Policy & Traffic Workflow
+
+The diagram below summarizes the logical rule decisions and source NAT configuration. It represents the configured policy intent, not a live packet-flow test.
+
+```mermaid
+flowchart TD
+    A["Client Network<br/>LAB-TRUST"]
+    B{"Destination Zone"}
+
+    C{"Authorized<br/>Admin SSH?"}
+    D["ALLOW<br/>Administrative SSH"]
+    E["DENY<br/>Other Client-to-Server Access"]
+
+    F{"Outbound SSL<br/>Policy Match?"}
+    G["ALLOW<br/>SSL Traffic"]
+    H["Source NAT<br/>Dynamic IP & Port<br/>ethernet1/5"]
+    I["Evaluate Other<br/>Applicable Policies"]
+
+    A --> B
+    B -->|LAB-SERVERS| C
+    C -->|Yes| D
+    C -->|No| E
+
+    B -->|LAB-UNTRUST| F
+    F -->|Yes| G
+    G --> H
+    F -->|No| I
+
+    classDef base fill:#eaf1f9,stroke:#315b84,color:#172d45,stroke-width:1.5px
+    classDef allowed fill:#dcefe7,stroke:#28765a,color:#184b39,stroke-width:2px
+    classDef denied fill:#f9e4e4,stroke:#bb5555,color:#7d2828,stroke-width:2px
+    class A,B,C,F,I base
+    class D,G,H allowed
+    class E denied
+```
+
+<br>
+
 ### Contents
 
 1. [Network architecture](#architecture)
