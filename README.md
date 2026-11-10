@@ -508,17 +508,28 @@ The `assets/` directory contains the topology diagram and personal branding. The
 ---
 
 <p align="center">
-  <strong>Brandon Stevenson</strong><br>
+  <img src="./assets/brandons-logo.png" alt="Brandon Stevenson — IT Professional" width="160">
+</p>
+
+<p align="center">
+  <strong>Brandon Stevenson</strong>
+</p>
+
+<p align="center">
   IT Infrastructure · Enterprise Networking · Systems Administration · Software Programming
 </p>
 
 <p align="center">
-  Microsoft Azure Fundamentals (AZ-900) · A.A.S. Computer Information Technology (Software Programming)<br>
-  B.S. Cloud & Network Engineering — Western Governors University (In Progress)
+  <sub>
+    Microsoft Azure Fundamentals (AZ-900) · A.A.S. Computer Information Technology (Software Programming)<br>
+    B.S. Cloud & Network Engineering — Western Governors University (In Progress)
+  </sub>
 </p>
 
 <p align="center">
-  <a href="https://www.brandons-resume.com/">Portfolio</a> &nbsp;·&nbsp;
-  <a href="https://github.com/brandon-in-tech">GitHub</a> &nbsp;·&nbsp;
+  <a href="https://www.brandons-resume.com/">Portfolio &amp; Résumé</a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
   <a href="https://www.linkedin.com/in/brandon-in-tech/">LinkedIn</a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="https://github.com/brandon-in-tech">GitHub</a>
 </p>
